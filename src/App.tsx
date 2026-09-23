@@ -7,6 +7,8 @@ import { ProductListView } from './views/ProductListView';
 import { ProductFormView } from './views/ProductFormView';
 import { OffersListView } from './views/OffersListView';
 import { OfferFormView } from './views/OfferFormView';
+import { TechniciansListView } from './views/TechniciansListView';
+import { TechnicianFormView } from './views/TechnicianFormView';
 import { Loader2 } from 'lucide-react';
 
 function AppContent() {
@@ -51,6 +53,11 @@ function AppContent() {
   const isAddOfferPage = currentPath === '/offers/new';
   const editOfferMatch = currentPath.match(/^\/offers\/([^/]+)\/edit$/);
   const editingOfferId = editOfferMatch ? editOfferMatch[1] : null;
+
+  const isTechniciansListPage = currentPath === '/technicians';
+  const isAddTechnicianPage = currentPath === '/technicians/new';
+  const editTechnicianMatch = currentPath.match(/^\/technicians\/([^/]+)\/edit$/);
+  const editingTechnicianId = editTechnicianMatch ? editTechnicianMatch[1] : null;
 
   // Global Auth Guard: Redirect unauthenticated or non-admin users to /login
   useEffect(() => {
@@ -97,7 +104,23 @@ function AppContent() {
 
       {/* Main App Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {isAddOfferPage ? (
+        {isAddTechnicianPage ? (
+          <TechnicianFormView
+            onCancel={() => navigate('/technicians')}
+            onSuccess={() => navigate('/technicians')}
+          />
+        ) : editingTechnicianId ? (
+          <TechnicianFormView
+            technicianId={editingTechnicianId}
+            onCancel={() => navigate('/technicians')}
+            onSuccess={() => navigate('/technicians')}
+          />
+        ) : isTechniciansListPage ? (
+          <TechniciansListView
+            onCreateTechnician={() => navigate('/technicians/new')}
+            onEditTechnician={(id) => navigate(`/technicians/${id}/edit`)}
+          />
+        ) : isAddOfferPage ? (
           <OfferFormView
             onCancel={() => navigate('/offers')}
             onSuccess={() => navigate('/offers')}
@@ -129,6 +152,7 @@ function AppContent() {
             onAddProduct={() => navigate('/products/new')}
             onEditProduct={(id) => navigate(`/products/${id}/edit`)}
             onNavigateToOffers={() => navigate('/offers')}
+            onNavigateToTechnicians={() => navigate('/technicians')}
           />
         )}
       </main>

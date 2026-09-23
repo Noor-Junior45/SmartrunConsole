@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Product, ProductCategory, SpecificationItem, FaqItem, Offer } from '../types';
+import { Product, ProductCategory, SpecificationItem, FaqItem, Offer, ColorVariant } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { ImageUploader } from '../components/ImageUploader';
 import { SpecificationsBuilder } from '../components/SpecificationsBuilder';
 import { FaqBuilder } from '../components/FaqBuilder';
 import { TagsInput } from '../components/TagsInput';
 import { ColorsInput } from '../components/ColorsInput';
+import { ColorVariantsBuilder } from '../components/ColorVariantsBuilder';
 import { ProductOffersSection } from '../components/ProductOffersSection';
 import { useToast } from '../context/ToastContext';
+import { getColorInfo } from '../lib/colorUtils';
 import { 
   ArrowLeft, 
   Save, 
@@ -60,6 +62,7 @@ export function ProductFormView({
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const [tags, setTags] = useState<string[]>([]);
   const [colors, setColors] = useState<string[]>([]);
+  const [colorVariants, setColorVariants] = useState<ColorVariant[]>([]);
 
   // UI state
   const [isLoadingProduct, setIsLoadingProduct] = useState<boolean>(isEditing);
@@ -199,7 +202,29 @@ export function ProductFormView({
           setFaqs(loadedFaqs);
 
           setTags(Array.isArray(data.tags) ? data.tags : []);
-          setColors(Array.isArray(data.colors) ? data.colors : []);
+
+          // Safe color variants parsing with backward compatible fallback to colors array
+          if (Array.isArray(data.color_variants) && data.color_variants.length > 0) {
+            setColorVariants(data.color_variants);
+            setColors(data.color_variants.map((v: any) => v.color || v.name || '').filter(Boolean));
+          } else if (Array.isArray(data.colors) && data.colors.length > 0) {
+            const mappedVariants: ColorVariant[] = data.colors.map((c: string) => {
+              const info = getColorInfo(c);
+              return {
+                color: c,
+                name: c,
+                hex: info.hex,
+                price: data.price !== undefined ? data.price : null,
+                mrp: data.mrp !== undefined ? data.mrp : null,
+                image_urls: [],
+              };
+            });
+            setColorVariants(mappedVariants);
+            setColors(data.colors);
+          } else {
+            setColorVariants([]);
+            setColors([]);
+          }
 
           if (offerRels) {
             setSelectedOfferIds(offerRels.map((r) => r.offer_id));
@@ -292,7 +317,32 @@ export function ProductFormView({
             a: (f.a ?? (f as any).answer ?? '').trim(),
           })),
         tags: tags.filter((t) => t.trim()),
-        colors: colors.filter((c) => c.trim()),
+        colors: colorVariants.length > 0
+          ? colorVariants.map((v) => (v.color || v.name || '').trim()).filter(Boolean)
+          : colors.filter((c) => c.trim()),
+        color_variants: colorVariants
+          .map((v) => {
+            const colorName = (v.color || v.name || '').trim();
+            const p = v.price !== null && v.price !== undefined && !isNaN(Number(v.price)) ? Number(v.price) : null;
+            const m = v.mrp !== null && v.mrp !== undefined && !isNaN(Number(v.mrp)) ? Number(v.mrp) : null;
+            const disc = v.discount_percent !== null && v.discount_percent !== undefined && !isNaN(Number(v.discount_percent))
+              ? Number(v.discount_percent)
+              : m && p && m > p
+              ? Math.round(((m - p) / m) * 100)
+              : null;
+            const imgUrls = Array.isArray(v.image_urls) ? v.image_urls.filter((u) => Boolean(u && u.trim())) : [];
+            return {
+              color: colorName,
+              name: colorName,
+              hex: v.hex || getColorInfo(colorName).hex,
+              price: p,
+              mrp: m,
+              discount_percent: disc,
+              image_urls: imgUrls,
+              image_url: imgUrls[0] || v.image_url || undefined,
+            };
+          })
+          .filter((v) => Boolean(v.color)),
         updated_at: new Date().toISOString(),
       };
 
@@ -673,7 +723,22 @@ export function ProductFormView({
             />
           </div>
 
-          {/* 4. Product Description Card */}
+          {/* 4. Color Variants & Linked Pricing */}
+          <div className="bg-white p-6 border border-[#1a1716]/10 shadow-2xs">
+            <ColorVariantsBuilder
+              variants={colorVariants}
+              onChange={(newVariants) => {
+                setColorVariants(newVariants);
+                setColors(newVariants.map((v) => (v.color || v.name || '').trim()).filter(Boolean));
+              }}
+              basePrice={Number(price) || 0}
+              baseMrp={mrp ? Number(mrp) : null}
+              productImages={imageUrls}
+              productName={name}
+            />
+          </div>
+
+          {/* 5. Product Description Card */}
           <div className="bg-white p-6 border border-[#1a1716]/10 shadow-2xs space-y-3">
             <h2 className="font-mono text-xs uppercase tracking-wider font-bold text-[#1a1716] flex items-center gap-2 border-b border-[#1a1716]/10 pb-3">
               <FileText className="w-4 h-4 text-[#2e4a3d]" />

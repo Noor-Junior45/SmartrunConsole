@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useToast } from '../context/ToastContext';
-import { getColorInfo } from '../lib/colorUtils';
+import { getColorInfo, getColorSwatchStyle } from '../lib/colorUtils';
 
 interface ProductRowProps {
   key?: React.Key;
@@ -150,26 +150,41 @@ export function ProductRow({
             </div>
 
             {/* Color Swatch Dots */}
-            {product.colors && product.colors.length > 0 && (
+            {((product.color_variants && product.color_variants.length > 0) || (product.colors && product.colors.length > 0)) && (
               <div className="flex items-center gap-1.5 mt-1 font-mono">
                 <div className="flex items-center -space-x-1">
-                  {product.colors.slice(0, 6).map((c) => {
-                    const info = getColorInfo(c);
-                    return (
-                      <span
-                        key={c}
-                        className={`w-2.5 h-2.5 rounded-full inline-block ring-1 ring-white ${
-                          info.isLight ? 'border border-[#1a1716]/20' : ''
-                        }`}
-                        style={{ backgroundColor: info.hex }}
-                        title={`Variant: ${c}`}
-                      />
-                    );
-                  })}
+                  {product.color_variants && product.color_variants.length > 0
+                    ? product.color_variants.slice(0, 6).map((v, i) => {
+                        const cName = v.color || v.name || '';
+                        const style = getColorSwatchStyle(cName, v.hex);
+                        const info = getColorInfo(cName, v.hex);
+                        return (
+                          <span
+                            key={`${cName}-${i}`}
+                            className={`w-2.5 h-2.5 rounded-full inline-block ring-1 ring-white ${
+                              info.isLight ? 'border border-[#1a1716]/20' : ''
+                            }`}
+                            style={style}
+                            title={`Variant: ${cName}${v.price ? ` (₹${v.price})` : ''}`}
+                          />
+                        );
+                      })
+                    : (product.colors || []).slice(0, 6).map((c) => {
+                        const info = getColorInfo(c);
+                        return (
+                          <span
+                            key={c}
+                            className={`w-2.5 h-2.5 rounded-full inline-block ring-1 ring-white ${
+                              info.isLight ? 'border border-[#1a1716]/20' : ''
+                            }`}
+                            style={{ backgroundColor: info.hex }}
+                            title={`Variant: ${c}`}
+                          />
+                        );
+                      })}
                 </div>
                 <span className="text-[10px] text-[#1a1716]/60">
-                  {product.colors.length} {product.colors.length === 1 ? 'color' : 'colors'}
-                  {product.colors.length <= 3 ? ` (${product.colors.join(', ')})` : ''}
+                  {product.color_variants?.length || product.colors?.length} {((product.color_variants?.length || product.colors?.length) === 1) ? 'color' : 'colors'}
                 </span>
               </div>
             )}

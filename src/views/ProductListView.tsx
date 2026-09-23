@@ -19,13 +19,15 @@ import {
   Flame, 
   Loader2,
   PackageX,
-  Tag
+  Tag,
+  Wrench
 } from 'lucide-react';
 
 interface ProductListViewProps {
   onAddProduct: () => void;
   onEditProduct: (id: string) => void;
   onNavigateToOffers?: () => void;
+  onNavigateToTechnicians?: () => void;
 }
 
 type SortOption = 'updated_desc' | 'name_asc' | 'price_asc' | 'price_desc' | 'stock_asc';
@@ -34,6 +36,7 @@ export function ProductListView({
   onAddProduct,
   onEditProduct,
   onNavigateToOffers,
+  onNavigateToTechnicians,
 }: ProductListViewProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -50,6 +53,8 @@ export function ProductListView({
   // Deletion Modal State
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [techniciansCount, setTechniciansCount] = useState<number | null>(null);
+  const [offersCount, setOffersCount] = useState<number | null>(null);
 
   const { showToast } = useToast();
 
@@ -57,10 +62,12 @@ export function ProductListView({
     setIsLoading(true);
     setError(null);
     try {
+      // Query up to 10,000 products per page with exact count
       const { data, error: fetchErr } = await supabase
         .from('products')
-        .select('*')
-        .order('updated_at', { ascending: false, nullsFirst: false });
+        .select('*', { count: 'exact' })
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .limit(10000);
 
       if (fetchErr) {
         throw fetchErr;
@@ -83,6 +90,28 @@ export function ProductListView({
 
   useEffect(() => {
     fetchProducts();
+
+    // Fetch technicians and offers count for category tab shortcuts
+    const fetchCounts = async () => {
+      try {
+        const { count: techCount } = await supabase
+          .from('technicians')
+          .select('*', { count: 'exact', head: true });
+        if (techCount !== null) {
+          setTechniciansCount(techCount);
+        }
+
+        const { count: offCount } = await supabase
+          .from('offers')
+          .select('*', { count: 'exact', head: true });
+        if (offCount !== null) {
+          setOffersCount(offCount);
+        }
+      } catch {
+        // non-blocking
+      }
+    };
+    fetchCounts();
   }, []);
 
   const handleStockStatusChange = (productId: string, newInStock: boolean) => {
@@ -198,19 +227,6 @@ export function ProductListView({
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-[#2e4a3d]' : ''}`} />
           </button>
 
-          {onNavigateToOffers && (
-            <button
-              type="button"
-              id="btn-view-offers"
-              onClick={onNavigateToOffers}
-              className="inline-flex items-center gap-2 px-4 py-3 bg-white border border-[#2e4a3d]/40 hover:bg-[#2e4a3d]/5 text-[#2e4a3d] text-xs font-mono uppercase tracking-widest font-bold transition cursor-pointer shadow-2xs"
-              title="Manage, Edit or Delete Product Offers"
-            >
-              <Tag className="w-4 h-4" />
-              Manage Offers
-            </button>
-          )}
-
           <button
             type="button"
             id="btn-add-new-product"
@@ -309,6 +325,40 @@ export function ProductListView({
               <HardHat className="w-3.5 h-3.5 text-[#2e4a3d]" />
               Construction ({metrics.constructionCount})
             </button>
+
+            {/* Field Technicians Button moved here next to Construction */}
+            {onNavigateToTechnicians && (
+              <button
+                id="tab-nav-technicians"
+                type="button"
+                onClick={onNavigateToTechnicians}
+                className="px-3.5 py-1.5 uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer text-[#1a1716]/75 hover:text-[#2e4a3d] hover:bg-white border border-transparent hover:border-[#1a1716]/10 hover:shadow-2xs"
+                title="View & manage certified field technicians & service specialists roster"
+              >
+                <Wrench className="w-3.5 h-3.5 text-[#2e4a3d]" />
+                <span>Technicians</span>
+                {techniciansCount !== null && (
+                  <span className="text-[10px] text-[#2e4a3d] font-semibold">({techniciansCount})</span>
+                )}
+              </button>
+            )}
+
+            {/* Promotional Offers Button moved here next to Technicians */}
+            {onNavigateToOffers && (
+              <button
+                id="tab-nav-offers"
+                type="button"
+                onClick={onNavigateToOffers}
+                className="px-3.5 py-1.5 uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer text-[#1a1716]/75 hover:text-[#2e4a3d] hover:bg-white border border-transparent hover:border-[#1a1716]/10 hover:shadow-2xs"
+                title="View & manage active product promotions, discount codes, and coupons"
+              >
+                <Tag className="w-3.5 h-3.5 text-[#2e4a3d]" />
+                <span>Offers</span>
+                {offersCount !== null && (
+                  <span className="text-[10px] text-[#2e4a3d] font-semibold">({offersCount})</span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* View Toggle & Sorting */}
@@ -506,9 +556,9 @@ export function ProductListView({
               </tbody>
             </table>
           </div>
-          <div className="p-3.5 bg-[#f2efeb]/80 border-t border-[#1a1716]/10 font-mono text-[11px] text-[#1a1716]/70 flex items-center justify-between">
-            <span>Showing {filteredProducts.length} of {products.length} catalog items</span>
-            <span className="text-[10px]">Real-time Supabase sync enabled</span>
+          <div className="p-3.5 bg-[#f2efeb]/80 border-t border-[#1a1716]/10 font-mono text-[11px] text-[#1a1716]/70 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>Showing {filteredProducts.length} of {products.length} products (All types visible • 10,000 max capacity)</span>
+            <span className="text-[10px]">Real-time database sync active</span>
           </div>
         </div>
       ) : (
@@ -526,7 +576,7 @@ export function ProductListView({
             ))}
           </div>
           <div className="mt-4 text-center font-mono text-[11px] text-[#1a1716]/60">
-            Showing {filteredProducts.length} of {products.length} products
+            Showing {filteredProducts.length} of {products.length} products (All types visible • 10,000 max capacity)
           </div>
         </div>
       )}
